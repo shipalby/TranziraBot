@@ -2,110 +2,104 @@ import os
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import ParseMode
 from aiogram.utils import executor
-from datetime import datetime
-import calendar
+from collections import defaultdict
+import datetime
 
-# Получаем токен из переменных окружения
-API_TOKEN = os.getenv("BOT_TOKEN")
+# Получаем токен из переменной окружения
+API_TOKEN = os.getenv('BOT_TOKEN')
 
-# Инициализация бота и диспетчера
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher(bot)
 
-# Словарь для учета расходов
-expenses = {}
-
-# Словарь для учета расходов по дням
-daily_expenses = {}
-
-# Генерация отчета по расходам
-def generate_report():
-    report_text = "Отчёт по расходам:\n----------------------------\n"
-    total = 0
-    for category, amount in expenses.items():
-        report_text += f"{category}: {amount} €\n"
-        total += amount
-    report_text += f"\nОбщая сумма: {total} €"
-    return report_text
-
-# Функция для проверки, если расходы на день превышают 20 €
-def check_daily_spending(user_id):
-    today = datetime.today().strftime('%Y-%m-%d')
-    if user_id in daily_expenses:
-        daily_total = sum(daily_expenses[user_id].values())
-        if daily_total > 20:
-            return "Эй, полегче, транжира, я тут пытаюсь сэкономить деньги!"
-    return None
-
-# Функция для подсчета минимальных расходов в конце месяца
-def congratulate_best_saver():
-    min_spender = None
-    min_spent = float('inf')
-
-    # Считаем расходы всех пользователей за месяц
-    for user_id, daily_data in daily_expenses.items():
-        monthly_total = sum(daily_data.values())
-        if monthly_total < min_spent:
-            min_spent = monthly_total
-            min_spender = user_id
-
-    # Если найден победитель, поздравляем его
-    if min_spender is not None:
-        bot.send_message(min_spender, "Поздравляю! Ты — король экономии! Ты потратил меньше всех в этом месяце!")
+# Словарь для хранения расходов участников
+expenses = defaultdict(lambda: defaultdict(float))
 
 # Обработчик команды /start
 @dp.message_handler(commands=['start'])
 async def send_welcome(message: types.Message):
-    await message.reply("Привет! Я твой бот для отслеживания расходов.\nИспользуй команду /report, чтобы получить отчет.")
+    welcome_message = (
+        "✨ Добро пожаловать, Даник бог трат и Арина богиня экономки! ✨\n"
+        "Ты на связи с моим супер-ботом, который поможет тебе отслеживать все твои расходы и сбережения! 💸\n"
+        "Будь готов к новым приключениям в мире финансов! 📈\n\n"
+        "Что ты хочешь сделать?\n"
+        "/help - Узнать, как я могу помочь 💁‍♂️\n"
+        "/report - Получить отчет по расходам 📊\n"
+        "/top_spender - Узнать, кто потратил больше всех 💰"
+    )
+    await message.reply(welcome_message)
+
+# Обработчик команды /help
+@dp.message_handler(commands=['help'])
+async def send_help(message: types.Message):
+    await message.reply(
+        "Вот что я могу:\n"
+        "/report - Получить отчёт по всем расходам 📊\n"
+        "/top_spender - Узнать, кто потратил больше всего 💰\n"
+        "Просто отправляй свои расходы в формате: 'Категория сумма' 📝\n"
+        "Пример: 'Еда 15.5'\n"
+        "Если тратишь больше 20 евро в день, я скажу тебе: 'Э, полегче, транжира!' 😂"
+    )
+
+# Обработчик входящих сообщений с расходами
+@dp.message_handler(lambda message: len(message.text.split()) == 2)
+async def handle_expenses(message: types.Message):
+    try:
+        category, amount = message.text.split()
+        amount = float(amount)
+        user_id = message.from_user.id
+
+        # Добавляем расход в словарь
+        expenses[user_id][category] += amount
+
+        # Проверка на большие траты
+        if amount > 20:
+            await message.reply(f"Э, полегче, транжира! 😜 Ты потратил {amount} евро на '{category}' сегодня. Я тут пытаюсь сэкономить деньги! 😅")
+        else:
+            await message.reply(f"Зарегистрировал твой расход: {category} - {amount} евро 🛍️")
+
+    except ValueError:
+        await message.reply("Неправильный формат! Используй формат: 'Категория сумма' 📝")
 
 # Обработчик команды /report
 @dp.message_handler(commands=['report'])
-async def send_report(message: types.Message):
-    report_text = generate_report()
-    await message.reply(report_text, parse_mode=ParseMode.MARKDOWN)
+async def report(message: types.Message):
+    user_id = message.from_user.id
+    if expenses[user_id]:
+        total_spent = sum(expenses[user_id].values())
+        report_message = "Вот твой отчет о расходах за месяц 🧾:\n"
+        for category, amount in expenses[user_id].items():
+            report_message += f"{category}: {amount} евро\n"
+        report_message += f"\nОбщая сумма расходов: {total_spent} евро 💸"
+        await message.reply(report_message, parse_mode=ParseMode.MARKDOWN)
+    else:
+        await message.reply("Ты еще не добавил никаких расходов. Добавь их с помощью команды /help 📝")
 
-# Обработчик для получения текстовых сообщений и записи расходов
-@dp.message_handler()
-async def record_expenses(message: types.Message):
-    try:
-        # Проверяем, что сообщение подходит по формату "категория сумма"
-        text = message.text.split()
-        category = text[0]
-        amount = float(text[1])
-        
-        user_id = message.from_user.id
-        today = datetime.today().strftime('%Y-%m-%d')
+# Обработчик команды /top_spender
+@dp.message_handler(commands=['top_spender'])
+async def top_spender(message: types.Message):
+    if not expenses:
+        await message.reply("Еще нет данных о расходах. Начни записывать расходы первым! 📝")
+        return
 
-        # Проверяем, если это первый расход за день, создаем запись
-        if user_id not in daily_expenses:
-            daily_expenses[user_id] = {}
+    top_spender_user = max(expenses, key=lambda user: sum(expenses[user].values()), default=None)
 
-        if category in expenses:
-            expenses[category] += amount
-        else:
-            expenses[category] = amount
+    if top_spender_user is not None:
+        total_spent = sum(expenses[top_spender_user].values())
+        await message.reply(f"Топ-транжира этого месяца - пользователь с ID {top_spender_user}! 💸 Он потратил {total_spent} евро на различные категории. Ты слишком щедр! 😱")
+    else:
+        await message.reply("Не удалось найти данных о тратах.")
 
-        # Добавляем расход в словарь для ежедневных трат
-        if today not in daily_expenses[user_id]:
-            daily_expenses[user_id][today] = 0
-        daily_expenses[user_id][today] += amount
-        
-        # Проверка превышения лимита по тратам за день
-        warning = check_daily_spending(user_id)
-        if warning:
-            await message.reply(warning)
+# Функция для ежедневного отчета
+async def daily_report():
+    for user_id, user_expenses in expenses.items():
+        total_spent = sum(user_expenses.values())
+        if total_spent > 20:
+            await bot.send_message(
+                user_id,
+                f"Эй, {user_id}, ты потратил больше 20 евро сегодня! 💸 Полегче, транжира! 😜"
+            )
 
-        await message.reply(f"Добавлено {amount} € в категорию {category}.")
-    except Exception as e:
-        await message.reply("Ошибка! Пожалуйста, используйте формат: 'Категория Сумма'. Пример: 'Еда 20'.")
-
-# Функция для запуска в конце месяца
-async def end_of_month_routine():
-    # Проверяем в конце месяца (можно запускать раз в день или с задержкой)
-    current_date = datetime.today()
-    if current_date.day == calendar.monthrange(current_date.year, current_date.month)[1]:
-        congratulate_best_saver()
-
+# Запуск бота
 if __name__ == '__main__':
     from aiogram import executor
     executor.start_polling(dp, skip_updates=True)
