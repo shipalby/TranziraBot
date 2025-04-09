@@ -1,6 +1,5 @@
 import os
 from aiogram import Bot, Dispatcher, types
-from aiogram.types import ParseMode
 from aiogram.utils import executor
 import logging
 from collections import defaultdict
@@ -11,7 +10,7 @@ bot = Bot(token=API_TOKEN)
 dp = Dispatcher(bot)
 
 # Словарь для хранения расходов пользователей
-user_expenses = defaultdict(lambda: defaultdict(int))  # user_expenses[user_id][category] = amount
+user_expenses = defaultdict(lambda: defaultdict(float))  # user_expenses[user_id][category] = total_amount
 
 # Команда /start для приветствия
 @dp.message_handler(commands=['start'])
@@ -29,7 +28,14 @@ async def cmd_start(message: types.Message):
 async def cmd_report(message: types.Message):
     user_id = message.from_user.id
     total_spent = sum(user_expenses[user_id].values())  # Общая сумма расходов
-    await message.answer(f"💸 Общая сумма расходов: {total_spent} €")
+    if total_spent == 0:
+        await message.answer("📊 Ты ещё не сделал ни одного расхода. Начни тратить! 😉")
+    else:
+        report = "💸 Твои расходы:\n"
+        for category, amount in user_expenses[user_id].items():
+            report += f"• {category}: {amount:.2f} €\n"
+        report += f"🔹 Общая сумма расходов: {total_spent:.2f} €"
+        await message.answer(report)
 
 # Команда /top_spender для вывода самого большого тратила
 @dp.message_handler(commands=['top_spender'])
@@ -39,26 +45,30 @@ async def cmd_top_spender(message: types.Message):
         await message.answer("🚨 Пока нет данных для подсчета самого транжирного покупателя!")
     else:
         top_amount = sum(user_expenses[top_user].values())
-        await message.answer(f"🏆 Самый транжирный покупатель: {top_user} с расходами: {top_amount} €")
+        await message.answer(f"🏆 Самый транжирный покупатель: {top_user} с расходами: {top_amount:.2f} €")
 
 # Обработчик сообщений для добавления расходов
 @dp.message_handler()
 async def handle_expense(message: types.Message):
     try:
         user_id = message.from_user.id
-        text = message.text.strip().split()
-        if len(text) != 2:
+        text = message.text.strip()
+
+        # Ищем последний пробел, чтобы разделить категорию и сумму
+        if text.count(' ') < 1:
             await message.answer("❌ Формат неправильный. Используй: 'Категория сумма'. Например: 'Еда 20'.")
             return
-        
-        category = text[0]  # Категория может быть любым текстом
-        amount = float(text[1])  # Сумма расхода
-        
+
+        # Разделяем на категорию и сумму, оставляя категорию целой даже если она состоит из нескольких слов
+        *category_parts, amount_str = text.rsplit(' ', 1)
+        category = ' '.join(category_parts)
+        amount = float(amount_str)
+
         if amount <= 0:
             await message.answer("❌ Сумма должна быть положительной!")
             return
         
-        user_expenses[user_id][category] += amount  # Добавляем расход для пользователя
+        user_expenses[user_id][category] += amount  # Суммируем расходы по одной категории для пользователя
 
         # Проверка, если траты больше 20 евро в день
         if amount > 20:
@@ -69,7 +79,7 @@ async def handle_expense(message: types.Message):
         if user_id == min_spender:
             await message.answer(f"🎉 Ты король экономии, {message.from_user.first_name}!")
         
-        await message.answer(f"✅ Расход добавлен: {category} - {amount} €")
+        await message.answer(f"✅ Расход добавлен: {category} - {amount:.2f} €")
 
     except ValueError:
         await message.answer("❌ Ошибка! Введите корректные данные: 'Категория сумма'. Например: 'Еда 20'.")
