@@ -1,59 +1,54 @@
+import os
+import telegram
+from telegram import ParseMode
+from datetime import datetime
+import pytz
 
-import logging
-from telegram import Update
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
+# Замените 'YOUR_TOKEN' на ваш токен, который вы получили от BotFather
+TOKEN = 7831191628:AAGxSoY6-MJp2BudjiVQB5ZFn-OPm456uN0
+CHAT_ID = 4629695919  # Укажите ID чата или группы
 
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                    level=logging.INFO)
-logger = logging.getLogger(__name__)
+# Создаем экземпляр бота
+bot = telegram.Bot(token=TOKEN)
 
-expenses = {}
+# Функция для подсчета расходов
+def calculate_expenses(messages):
+    expenses = {}
+    for message in messages:
+        if message.text:
+            text = message.text.strip()
+            if text.startswith("Еда") or text.startswith("Транспорт") or text.startswith("Прочее"):
+                category, amount = text.split()
+                try:
+                    amount = float(amount)
+                    if category in expenses:
+                        expenses[category] += amount
+                    else:
+                        expenses[category] = amount
+                except ValueError:
+                    pass  # Пропустить строки с некорректными данными
+    return expenses
 
-def start(update, context):
-    update.message.reply_text("Привет! Я твой бот для учёта расходов. Напиши 'Еда 20', чтобы зарегистрировать расход.")
+# Функция для создания отчета
+def create_report(expenses):
+    report_text = "Отчёт по расходам:\n"
+    for category, total in expenses.items():
+        report_text += f"{category}: {total} €\n"
+    return report_text
 
-def track_expense(update, context):
-    message = update.message.text
-    user = update.message.from_user.username
+# Функция для отправки отчета в чат
+def send_report():
+    # Получаем последние 100 сообщений в группе (или чате)
+    messages = bot.get_chat_history(CHAT_ID, limit=100)
+    expenses = calculate_expenses(messages)
+    report_text = create_report(expenses)
+    bot.send_message(chat_id=CHAT_ID, text=report_text, parse_mode=ParseMode.MARKDOWN)
 
-    try:
-        category, amount = message.split()
-        amount = float(amount)
-
-        if user not in expenses:
-            expenses[user] = {}
-
-        if category not in expenses[user]:
-            expenses[user][category] = 0
-
-        expenses[user][category] += amount
-        update.message.reply_text(f"Добавлен расход: {category} - {amount} от {user}")
-    except ValueError:
-        update.message.reply_text("Неверный формат. Пример: 'Еда 20'")
-
-def report(update, context):
-    report_text = "Отчёт по расходам:"
-"
-    for user, categories in expenses.items():
-        report_text += f"
-{user}:
-"
-        for category, amount in categories.items():
-            report_text += f"{category}: {amount} евро
-"
-    update.message.reply_text(report_text)
-
-def main():
-    token = 'YOUR_BOT_TOKEN'
-    updater = Updater(token, use_context=True)
-    dispatcher = updater.dispatcher
-
-    dispatcher.add_handler(CommandHandler('start', start))
-    dispatcher.add_handler(CommandHandler('report', report))
-    dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, track_expense))
-
-    updater.start_polling()
-    updater.idle()
-
-if __name__ == '__main__':
-    main()
+# Запуск отправки отчета каждый месяц (например, в последний день месяца)
+if __name__ == "__main__":
+    # Получаем текущую дату
+    now = datetime.now(pytz.timezone("Europe/Moscow"))
+    
+    # Если сегодня последний день месяца, отправляем отчет
+    if now.day == 30 or now.day == 31:
+        send_report()
