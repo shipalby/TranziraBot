@@ -5,8 +5,8 @@ from datetime import datetime
 import pytz
 
 # Замените 'YOUR_TOKEN' на ваш токен, который вы получили от BotFather
-TOKEN = 7831191628:AAGxSoY6-MJp2BudjiVQB5ZFn-OPm456uN0
-CHAT_ID = 4629695919  # Укажите ID чата или группы
+TOKEN = '7831191628:AAGxSoY6-MJp2BudjiVQB5ZFn-OPm456uN0'
+CHAT_ID = '4629695919'  # Укажите ID чата или группы
 
 # Создаем экземпляр бота
 bot = telegram.Bot(token=TOKEN)
