@@ -51,6 +51,11 @@ async def cmd_top_spender(message: types.Message):
 # Команда /delete_expenses для удаления расходов
 @dp.message_handler(commands=['delete_expenses'])
 async def cmd_delete_expenses(message: types.Message):
+    user_id = message.from_user.id
+    if not user_expenses[user_id]:
+        await message.answer("❌ У тебя нет расходов для удаления.")
+        return
+    
     await message.answer(
         "Выбери, что ты хочешь удалить:\n"
         "1️⃣ Последний расход\n"
