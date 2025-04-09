@@ -32,7 +32,7 @@ def track_expense(update, context):
         update.message.reply_text("Неверный формат. Пример: 'Еда 20'")
 
 def report(update, context):
-    report_text = "Отчёт по расходам:
+    report_text = "Отчёт по расходам:"
 "
     for user, categories in expenses.items():
         report_text += f"
