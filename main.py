@@ -60,8 +60,8 @@ async def handle_expense(message: types.Message):
             return
 
         # Разделяем на категорию и сумму, оставляя категорию целой даже если она состоит из нескольких слов
-        *category_parts, amount_str = text.rsplit(' ', 1)
-        category = ' '.join(category_parts)
+        *category_parts, amount_str = text.rsplit(' ', 1)  # Разделяем по последнему пробелу
+        category = ' '.join(category_parts)  # Все слова до последнего пробела — это категория
         amount = float(amount_str)
 
         if amount <= 0:
